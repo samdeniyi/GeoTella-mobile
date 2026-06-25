@@ -4,6 +4,8 @@ export type GrowthRating = 'COOLING' | 'STEADY' | 'WARMING' | 'HOT';
 export type AttestType = 'ATTEST' | 'REFUTE';
 // Insight `persona` mirrors the role-store enum the backend now requires.
 export type InsightPersona = 'EXPLORER' | 'GROWTH_SEEKER';
+// Insight access level returned by the backend on feed/detail endpoints.
+export type InsightFeatureAccess = 'ACCESS' | 'FULL_ACCESS' | 'NO_ACCESS';
 
 export type InsightAction = 'DETAILS' | 'PREVIEW' | 'PUBLISH' | 'TAKE_DOWN' | 'DELETE' | string;
 
@@ -87,6 +89,10 @@ export type Insight = {
   updatedAt?: string;
 
   allowedActions?: InsightAction[];
+  // Access level — 'ACCESS' means the user has unlocked the full insight,
+  // 'NO_ACCESS' means the paywall applies.
+  feature?: InsightFeatureAccess;
+  fullAccess?: boolean;
 
   // Engagement counters (new naming from backend).
   viewCount?: number;
@@ -152,7 +158,7 @@ const buildFeedQueryParams = (
 ): Record<string, string | number | boolean | undefined> => {
   const params: Record<string, string | number | boolean | undefined> = {
     page: q.page ?? 1,
-    limit: q.limit ?? 20,
+    limit: q.limit ?? 100,
   };
   if (q.categoryId) params.categoryId = q.categoryId;
   // growthRating is handled separately as repeated query params in getFeed.
@@ -315,6 +321,9 @@ export const recordInsightView = (id: string) =>
 
 export const likeInsight = (id: string) =>
   apiRequest<unknown>(`/api/insights/${id}/like`, { method: 'POST' });
+
+export const unlikeInsight = (id: string) =>
+  apiRequest<unknown>(`/api/insights/${id}/unlike`, { method: 'POST' });
 
 export const getBookmarks = (query: FeedQuery = {}) =>
   apiRequest<Paginated<Insight> | Insight[]>('/api/insights/bookmarks', {

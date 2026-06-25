@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 
 import { extractInsights, type Insight } from '@/features/insights/api/insights-api';
 import {
@@ -8,14 +9,64 @@ import {
 } from '@/features/insights/api/insights-queries';
 import { normalizeInsight } from '@/features/insights/normalize';
 import { getErrorMessage } from '@/lib/api/error-message';
+import {
+  useCompleteDailyChallengeMutation,
+  useDailyChallengesStatusQuery,
+} from '@/features/daily-challenges/api/daily-challenges-queries';
+import { extractChallengesStatus } from '@/features/daily-challenges/api/daily-challenges-api';
 
 const ATTESTATIONS_REQUIRED = 3;
 
 export function VerifyStep() {
+  const { dailyChallengeId } = useLocalSearchParams<{ dailyChallengeId?: string }>();
   const pending = usePendingVerificationQuery();
   const attest = useAttestInsightMutation();
 
+  const challengesQuery = useDailyChallengesStatusQuery();
+  const challengeStatus = useMemo(() => extractChallengesStatus(challengesQuery.data), [challengesQuery.data]);
+  const completeChallengeMutation = useCompleteDailyChallengeMutation();
+
   const items = useMemo<Insight[]>(() => extractInsights(pending.data), [pending.data]);
+
+  const handleVerify = (id: string, type: 'ATTEST' | 'REFUTE') => {
+    attest.mutate(
+      { id, type },
+      {
+        onSuccess: () => {
+          if (challengeStatus?.challenges) {
+            // Find an active daily challenge of type ATTEST or FEEDBACK
+            let matchingChallenge = challengeStatus.challenges.find(
+              (c) =>
+                !c.completed &&
+                (c.type?.toUpperCase().includes('ATTEST') || c.type?.toUpperCase().includes('FEEDBACK')) &&
+                c.id === dailyChallengeId
+            );
+
+            if (!matchingChallenge) {
+              matchingChallenge = challengeStatus.challenges.find(
+                (c) =>
+                  !c.completed &&
+                  (c.type?.toUpperCase().includes('ATTEST') || c.type?.toUpperCase().includes('FEEDBACK')) &&
+                  c.insightId === id
+              );
+            }
+
+            if (!matchingChallenge) {
+              matchingChallenge = challengeStatus.challenges.find(
+                (c) =>
+                  !c.completed &&
+                  (c.type?.toUpperCase().includes('ATTEST') || c.type?.toUpperCase().includes('FEEDBACK'))
+              );
+            }
+
+            if (matchingChallenge) {
+              completeChallengeMutation.mutate(matchingChallenge.id);
+            }
+          }
+        },
+      }
+    );
+  };
 
   return (
     <ScrollView
@@ -66,6 +117,7 @@ export function VerifyStep() {
           const needs = Math.max(0, ATTESTATIONS_REQUIRED - attestations);
           const progress = Math.min(1, attestations / ATTESTATIONS_REQUIRED);
           const isPending = attest.isPending && attest.variables?.id === raw.id;
+          const pendingType = isPending ? attest.variables?.type : undefined;
 
           return (
             <View key={raw.id} className="mb-6 rounded-[32px] border border-border bg-white p-6">
@@ -122,17 +174,21 @@ export function VerifyStep() {
               <View className="flex-row gap-4">
                 <Pressable
                   disabled={isPending}
-                  onPress={() => attest.mutate({ id: raw.id, type: 'REFUTE' })}
+                  onPress={() => handleVerify(raw.id, 'REFUTE')}
                   className="h-14 flex-1 items-center justify-center rounded-2xl border border-border bg-white"
                 >
-                  <Text className="font-bold text-accent">✕ Refute</Text>
+                  {pendingType === 'REFUTE' ? (
+                    <ActivityIndicator color="#E85A2D" />
+                  ) : (
+                    <Text className="font-bold text-accent">✕ Refute</Text>
+                  )}
                 </Pressable>
                 <Pressable
                   disabled={isPending}
-                  onPress={() => attest.mutate({ id: raw.id, type: 'ATTEST' })}
+                  onPress={() => handleVerify(raw.id, 'ATTEST')}
                   className="h-14 flex-1 items-center justify-center rounded-2xl bg-brand"
                 >
-                  {isPending ? (
+                  {pendingType === 'ATTEST' ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
                     <Text className="font-bold text-white">✓ Attest</Text>

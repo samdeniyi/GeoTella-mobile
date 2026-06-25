@@ -3,7 +3,9 @@ import { cssInterop } from 'nativewind';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -76,8 +78,21 @@ export function DescribeStep({ onNext, onCancel }: Props) {
       ? (currentIndex / (SIGNALS.length - 1)) * trackWidth - THUMB_SIZE / 2
       : -THUMB_SIZE / 2;
 
+  const canContinue = Boolean(data.headline && data.categoryId && data.description?.trim());
+
   return (
-    <ScrollView className="flex-1 px-6" showsVerticalScrollIndicator={false}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      className="flex-1"
+    >
+    <ScrollView
+      className="flex-1 px-6"
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
+      automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+      contentInsetAdjustmentBehavior="automatic"
+    >
       {/* Location Breadcrumb */}
       <View className="mb-8 flex-row items-center gap-3 rounded-2xl border border-[#DCF5EA] bg-[#F1F8F5] p-4">
         <Text className="text-brand">⊙</Text>
@@ -203,10 +218,10 @@ export function DescribeStep({ onNext, onCancel }: Props) {
 
       <View className="mb-10 gap-4">
         <Pressable
-          onPress={onNext}
-          disabled={!data.headline || !data.categoryId}
+          onPress={canContinue ? onNext : undefined}
+          disabled={!canContinue}
           className={`h-16 flex-row items-center justify-center gap-2 rounded-[24px] ${
-            data.headline && data.categoryId ? 'bg-brand' : 'bg-brand/40'
+            canContinue ? 'bg-brand' : 'bg-brand/40'
           }`}
         >
           <Text className="text-base font-bold text-white">Next: Evidence</Text>
@@ -266,5 +281,6 @@ export function DescribeStep({ onNext, onCancel }: Props) {
         </Pressable>
       </Modal>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }

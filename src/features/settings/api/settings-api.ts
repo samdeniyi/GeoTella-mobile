@@ -68,7 +68,10 @@ export type PrivacyPolicy = {
 };
 
 export const getPrivacyPolicy = () =>
-  apiRequest<PrivacyPolicy | { data?: PrivacyPolicy }>('/api/user/settings/legal/privacy-policy');
+  apiRequest<PrivacyPolicy | { data?: PrivacyPolicy }>('/api/user/settings/legal/privacy-policy', {
+    // Public legal text — accessible from the signup screen before login.
+    unauthenticated: true,
+  });
 
 export const unwrapPrivacyPolicy = (raw: unknown): PrivacyPolicy | null => {
   if (!raw || typeof raw !== 'object') return null;

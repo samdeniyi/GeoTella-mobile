@@ -1,6 +1,6 @@
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { router } from 'expo-router';
+import React, { useState, useMemo } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Circle } from 'react-native-svg';
@@ -18,6 +18,7 @@ import {
   StarIcon,
   PinBadgeIcon,
   LayersIcon,
+  TokenWalletIcon,
 } from '@/components/ui/Icons';
 import { extractNotifications } from '@/features/notifications/api/notifications-api';
 import { useNotificationsQuery } from '@/features/notifications/api/notifications-queries';
@@ -34,6 +35,9 @@ import {
 import { useMyAchievementsQuery, useMyBadgesQuery } from '@/features/users/api/users-queries';
 import { cn } from '@/lib/cn';
 import { useAuthStore, useUser, useUserRole } from '@/stores/auth-store';
+import { useWalletDashboardQuery } from '@/features/wallet/api/wallet-queries';
+import { unwrap as unwrapWallet } from '@/features/wallet/api/wallet-api';
+
 
 const initials = (name?: string) =>
   (name ?? '')
@@ -67,7 +71,6 @@ const getBadgeIcon = (name: string, color: string) => {
 };
 
 export default function ProfileScreen() {
-  const router = useRouter();
   const role = useUserRole();
   const user = useUser();
   const setRole = useAuthStore((s) => s.setRole);
@@ -78,6 +81,9 @@ export default function ProfileScreen() {
   const uploadPhoto = useUploadProfilePhotoMutation();
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
+
+
+
 
   const pickProfilePhoto = async () => {
     setPhotoError(null);
@@ -152,10 +158,26 @@ export default function ProfileScreen() {
 
   const unreadCount = React.useMemo(() => {
     const allNotifs = extractNotifications(notifQuery.data);
-    return allNotifs.filter((n) => !n.isRead && !n.read).length;
+    return allNotifs.filter((n) => n.isRead === false || n.read === false).length;
   }, [notifQuery.data]);
 
+  // Tokens are a Growth Seeker concept — Explorers don't pay for insights, so
+  // the wallet UI is hidden for them.
+  const walletDashboard = useWalletDashboardQuery();
+  const balance = unwrapWallet(walletDashboard.data)?.balance ?? 0;
+  const showTokens = !isExplorer;
+
   const menuItems = [
+    ...(showTokens
+      ? [
+          {
+            id: 'token_wallet',
+            label: 'Token Wallet',
+            icon: TokenWalletIcon,
+            value: `${balance} tokens`,
+          },
+        ]
+      : []),
     { id: 'contributions', label: 'My Contributions', icon: ContributionsMenuIcon },
     { id: 'notifications', label: 'Notifications', icon: NotificationsMenuIcon },
     { id: 'privacy', label: 'Data & privacy', icon: PrivacyMenuIcon },
@@ -173,12 +195,26 @@ export default function ProfileScreen() {
     <View className="flex-1 bg-surface">
       <SafeAreaView edges={['top']} className="flex-row items-center justify-between px-6 py-2">
         <Logo />
-        <Pressable
-          onPress={() => router.push('/settings')}
-          className="h-10 w-10 items-center justify-center rounded-full border border-border bg-surface-card"
-        >
-          <SettingsIcon size={20} />
-        </Pressable>
+        <View className="flex-row items-center gap-3">
+          {showTokens ? (
+            <Pressable
+              onPress={() => router.push('/wallet')}
+              className="flex-row items-center gap-1.5 rounded-full border border-brand/20 bg-[#DCF5EA]/60 px-3.5 py-1.5"
+            >
+              <View className="h-5 w-5 items-center justify-center rounded-full bg-brand">
+                <TokenWalletIcon color="white" size={11} />
+              </View>
+              <Text className="text-sm font-bold text-brand">{balance}</Text>
+            </Pressable>
+          ) : null}
+
+          <Pressable
+            onPress={() => router.push('/settings')}
+            className="h-10 w-10 items-center justify-center rounded-full border border-border bg-surface-card"
+          >
+            <SettingsIcon size={20} />
+          </Pressable>
+        </View>
       </SafeAreaView>
 
       <View className="h-[1px] w-full bg-border/40" />
@@ -342,6 +378,8 @@ export default function ProfileScreen() {
           ) : null}
         </View>
 
+
+
         {/* Network / Focus cards — backend doesn't expose these yet, leave commented for now.
         {!isExplorer && (
           <View className="mb-8 flex-row gap-3 px-6">
@@ -444,6 +482,7 @@ export default function ProfileScreen() {
                   key={item.id}
                   disabled={item.id === 'signout' && signingOut}
                   onPress={async () => {
+                    if (item.id === 'token_wallet') router.push('/wallet');
                     if (item.id === 'contributions') router.push('/contributions');
                     if (item.id === 'notifications') router.push('/notifications');
                     if (item.id === 'privacy') router.push('/privacy');
@@ -483,6 +522,9 @@ export default function ProfileScreen() {
                     </Text>
                   </View>
                   <View className="flex-row items-center gap-3">
+                    {item.value ? (
+                      <Text className="mr-1 text-sm font-bold text-brand">{item.value}</Text>
+                    ) : null}
                     {item.id === 'notifications' && unreadCount > 0 && (
                       <View
                         className={cn(
@@ -501,6 +543,8 @@ export default function ProfileScreen() {
           </View>
         </View>
       </ScrollView>
+
+
     </View>
   );
 }

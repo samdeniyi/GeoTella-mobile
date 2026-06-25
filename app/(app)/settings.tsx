@@ -3,7 +3,10 @@ import { useRouter, type Href } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   Switch,
@@ -19,6 +22,8 @@ import {
   useChangePasswordMutation,
   useRequestChangePasswordOtpMutation,
 } from '@/features/auth/api/auth-queries';
+import { extractProfile } from '@/features/profile/api/profile-api';
+import { useProfileQuery } from '@/features/profile/api/profile-queries';
 import {
   unwrapSettings,
   type NotificationPrefs,
@@ -65,6 +70,8 @@ export default function SettingsScreen() {
 
   const settingsQuery = useUserSettingsQuery();
   const settings = unwrapSettings(settingsQuery.data);
+  const profileQuery = useProfileQuery();
+  const profile = extractProfile(profileQuery.data);
 
   const updateUserInfo = useUpdateUserInfoMutation();
   const updateNotifs = useUpdateNotificationPrefsMutation();
@@ -104,10 +111,12 @@ export default function SettingsScreen() {
   const [editError, setEditError] = useState<string | null>(null);
 
   const openEdit = () => {
+    // Prefer the canonical profile (firstName/lastName/phoneNumber live there).
+    // Fall back to settings.user in case the profile query hasn't resolved yet.
     const u = settings?.user as Record<string, unknown> | undefined;
-    setEditFirst(((u?.firstName as string | undefined) ?? '') as string);
-    setEditLast(((u?.lastName as string | undefined) ?? '') as string);
-    setEditPhone(((u?.phoneNumber as string | undefined) ?? '') as string);
+    setEditFirst(profile?.firstName ?? (u?.firstName as string | undefined) ?? '');
+    setEditLast(profile?.lastName ?? (u?.lastName as string | undefined) ?? '');
+    setEditPhone(profile?.phoneNumber ?? (u?.phoneNumber as string | undefined) ?? '');
     setEditError(null);
     setEditOpen(true);
   };
@@ -198,8 +207,21 @@ export default function SettingsScreen() {
     }
     try {
       await deleteAccount.mutateAsync('DELETE');
-      await signOut();
-      router.replace('/(auth)/login');
+      setDeleteOpen(false);
+      Alert.alert(
+        'Account deleted',
+        'Your account and personal data have been removed.',
+        [
+          {
+            text: 'OK',
+            onPress: async () => {
+              await signOut();
+              router.replace('/(auth)/login');
+            },
+          },
+        ],
+        { cancelable: false },
+      );
     } catch (e) {
       setDeleteError(getErrorMessage(e, 'Could not delete account.'));
     }
@@ -366,13 +388,17 @@ export default function SettingsScreen() {
         animationType="slide"
         onRequestClose={() => setEditOpen(false)}
       >
-        <Pressable onPress={() => setEditOpen(false)} className="flex-1 justify-end bg-black/40">
-          <Pressable
-            onPress={() => {
-              /* keep open */
-            }}
-            className="rounded-t-[32px] bg-surface-card p-6"
-          >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          className="flex-1"
+        >
+          <Pressable onPress={() => setEditOpen(false)} className="flex-1 justify-end bg-black/40">
+            <Pressable
+              onPress={() => {
+                /* keep open */
+              }}
+              className="rounded-t-[32px] bg-surface-card p-6"
+            >
             <Text className="mb-6 text-2xl font-bold text-text">Edit profile</Text>
 
             <Text className="mb-2 text-[10px] font-bold uppercase tracking-widest text-text opacity-40">
@@ -435,8 +461,9 @@ export default function SettingsScreen() {
                 <Text className="font-bold text-text">Cancel</Text>
               </Pressable>
             </View>
+            </Pressable>
           </Pressable>
-        </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Change password modal */}
@@ -446,6 +473,10 @@ export default function SettingsScreen() {
         animationType="slide"
         onRequestClose={() => setPwOpen(false)}
       >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          className="flex-1"
+        >
         <Pressable onPress={() => setPwOpen(false)} className="flex-1 justify-end bg-black/40">
           <Pressable
             onPress={() => {
@@ -587,6 +618,7 @@ export default function SettingsScreen() {
             )}
           </Pressable>
         </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Delete account modal */}
@@ -596,6 +628,10 @@ export default function SettingsScreen() {
         animationType="slide"
         onRequestClose={() => setDeleteOpen(false)}
       >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          className="flex-1"
+        >
         <Pressable onPress={() => setDeleteOpen(false)} className="flex-1 justify-end bg-black/40">
           <Pressable
             onPress={() => {
@@ -646,6 +682,7 @@ export default function SettingsScreen() {
             </View>
           </Pressable>
         </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

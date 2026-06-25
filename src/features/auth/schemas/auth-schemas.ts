@@ -5,8 +5,10 @@ export const emailSchema = z.string().trim().toLowerCase().email('Enter a valid 
 export const passwordSchema = z
   .string()
   .min(8, 'At least 8 characters')
+  .regex(/[a-z]/, 'Must contain a lowercase letter')
   .regex(/[A-Z]/, 'Must contain an uppercase letter')
-  .regex(/[0-9]/, 'Must contain a number');
+  .regex(/[0-9]/, 'Must contain a number')
+  .regex(/[^A-Za-z0-9]/, 'Must contain a special character');
 
 export const loginSchema = z.object({
   email: emailSchema,
@@ -15,7 +17,11 @@ export const loginSchema = z.object({
 export type LoginInput = z.infer<typeof loginSchema>;
 
 export const signupSchema = z.object({
-  fullName: z.string().min(2, 'Enter your full name'),
+  fullName: z
+    .string()
+    .trim()
+    .min(2, 'Enter your full name')
+    .regex(/^[A-Za-z][A-Za-z\s'\-]*$/, 'Only letters, spaces, hyphens, and apostrophes'),
   email: emailSchema,
   dateOfBirth: z.string().min(1, 'Select your date of birth'),
   password: passwordSchema,

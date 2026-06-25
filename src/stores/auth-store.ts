@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 import { STORAGE_KEYS } from '@/constants/storage-keys';
 import { logout } from '@/features/auth/api/auth-api';
+import { queryClient } from '@/lib/query-client';
 import { secureStorage } from '@/lib/secure-storage';
 import { useSignupStore } from '@/stores/signup-store';
 import type { User, UserRole } from '@/types';
@@ -25,16 +26,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   hydrate: async () => {
     set({ status: 'loading' });
-    const [token, userJson] = await Promise.all([
-      secureStorage.get(STORAGE_KEYS.AUTH_TOKEN),
-      secureStorage.get(STORAGE_KEYS.USER),
-    ]);
+    // Read defensively — a transient SecureStore failure on Android (e.g. the
+    // keystore is temporarily unavailable just after boot) shouldn't sign the
+    // user out. Only flip to `unauthenticated` when we positively confirm the
+    // session is missing.
+    let token: string | null = null;
+    let userJson: string | null = null;
+    try {
+      [token, userJson] = await Promise.all([
+        secureStorage.get(STORAGE_KEYS.AUTH_TOKEN),
+        secureStorage.get(STORAGE_KEYS.USER),
+      ]);
+    } catch {
+      // Storage read failed — leave whatever's in storage alone so the next
+      // launch can retry. Treat this launch as signed-out.
+      set({ status: 'unauthenticated', user: null, token: null });
+      return;
+    }
     if (token && userJson) {
       try {
         const user = JSON.parse(userJson) as User;
         set({ status: 'authenticated', user, token });
         return;
       } catch {
+        // The stored user blob is corrupt but the token may still be valid —
+        // wipe only the broken record, not the token.
         await secureStorage.remove(STORAGE_KEYS.USER);
       }
     }
@@ -42,6 +58,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signIn: async ({ user, token, refreshToken }) => {
+    // Drop any cached queries from a previous session so the new user never
+    // sees the old user's profile / feed / notifications etc.
+    queryClient.clear();
     await Promise.all([
       secureStorage.set(STORAGE_KEYS.AUTH_TOKEN, token),
       secureStorage.set(STORAGE_KEYS.USER, JSON.stringify(user)),
@@ -68,6 +87,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     ]);
     set({ status: 'unauthenticated', user: null, token: null });
     useSignupStore.getState().reset();
+    // Wipe cached queries so a subsequent login (even as a different user)
+    // doesn't briefly show the previous user's data.
+    queryClient.clear();
   },
 
   setRole: (role) => {

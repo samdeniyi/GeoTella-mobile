@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { Screen } from '@/components/layout/Screen';
@@ -11,6 +11,7 @@ import {
   useResendRegistrationOtpMutation,
   useVerifyRegistrationMutation,
 } from '@/features/auth/api/auth-queries';
+import { useResendCooldown } from '@/hooks/use-resend-cooldown';
 import { getErrorMessage } from '@/lib/api/error-message';
 import { useSignupStore } from '@/stores/signup-store';
 
@@ -29,9 +30,17 @@ export default function VerifyOtp() {
 
   const verifyMutation = useVerifyRegistrationMutation();
   const resendMutation = useResendRegistrationOtpMutation();
+  const resendCooldown = useResendCooldown(60);
 
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  // Start the initial cooldown when the screen mounts — the OTP was just sent
+  // by the signup step, so the user shouldn't be able to spam resend immediately.
+  useEffect(() => {
+    resendCooldown.start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onVerify = async () => {
     setError(null);
@@ -50,8 +59,10 @@ export default function VerifyOtp() {
   };
 
   const onResend = async () => {
+    if (resendCooldown.isCoolingDown || resendMutation.isPending) return;
     try {
       await resendMutation.mutateAsync(email);
+      resendCooldown.start();
     } catch {
       // Surface silently in the same banner if the backend rejects it.
     }
@@ -105,10 +116,20 @@ export default function VerifyOtp() {
         <Text className="text-base text-text opacity-70">
           Didn't get it?{' '}
           <Text
-            className="font-bold text-brand underline decoration-brand"
-            onPress={resendMutation.isPending ? undefined : onResend}
+            className={
+              resendCooldown.isCoolingDown || resendMutation.isPending
+                ? 'font-bold text-text opacity-40'
+                : 'font-bold text-brand underline decoration-brand'
+            }
+            onPress={
+              resendCooldown.isCoolingDown || resendMutation.isPending ? undefined : onResend
+            }
           >
-            {resendMutation.isPending ? 'Sending...' : 'Resend code'}
+            {resendMutation.isPending
+              ? 'Sending...'
+              : resendCooldown.isCoolingDown
+                ? `Resend in ${resendCooldown.secondsLeft}s`
+                : 'Resend code'}
           </Text>
         </Text>
 

@@ -1,8 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import DateTimePicker, {
-  type DateTimePickerEvent,
-} from '@react-native-community/datetimepicker';
-import { useRouter } from 'expo-router';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { Link, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Platform, Text, View, Pressable } from 'react-native';
@@ -31,8 +29,34 @@ const formatDisplayDate = (iso: string): string => {
   return `${d}/${m}/${y}`;
 };
 
-const MAX_DOB = new Date();
+// 18+ minimum: the latest acceptable DOB is exactly 18 years before today.
+const MAX_DOB = (() => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 18);
+  return d;
+})();
 const MIN_DOB = new Date(1900, 0, 1);
+
+const isAtLeast18 = (isoDate: string): boolean => {
+  const dob = new Date(isoDate);
+  if (Number.isNaN(dob.getTime())) return false;
+  const cutoff = new Date();
+  cutoff.setFullYear(cutoff.getFullYear() - 18);
+  return dob.getTime() <= cutoff.getTime();
+};
+
+function PasswordRule({ label, ok }: { label: string; ok: boolean }) {
+  return (
+    <View className="flex-row items-center gap-2">
+      <Text className={ok ? 'text-xs font-bold text-brand' : 'text-xs text-text opacity-40'}>
+        {ok ? '✓' : '○'}
+      </Text>
+      <Text className={ok ? 'text-xs font-medium text-brand' : 'text-xs text-text opacity-60'}>
+        {label}
+      </Text>
+    </View>
+  );
+}
 
 export default function SignupCreateAccount() {
   const router = useRouter();
@@ -59,10 +83,12 @@ export default function SignupCreateAccount() {
     if (!password) return 0;
     let strength = 0;
     if (password.length >= 8) strength++;
+    if (/[a-z]/.test(password)) strength++;
     if (/[A-Z]/.test(password)) strength++;
     if (/[0-9]/.test(password)) strength++;
     if (/[^A-Za-z0-9]/.test(password)) strength++;
-    return strength;
+    // Clamp to the 4-bar display so the indicator caps at "Excellent".
+    return Math.min(4, strength);
   };
 
   const strength = getPasswordStrength();
@@ -72,6 +98,11 @@ export default function SignupCreateAccount() {
   const onSubmit = async (values: SignupInput) => {
     if (!agree) return;
     setServerError(null);
+
+    if (!isAtLeast18(values.dateOfBirth)) {
+      setServerError('You must be at least 18 years old to sign up.');
+      return;
+    }
 
     try {
       await registerMutation.mutateAsync({
@@ -95,7 +126,7 @@ export default function SignupCreateAccount() {
         Create your Geotela account.
       </Text>
       <Text className="mt-3 text-lg text-text opacity-70">
-        Join 562 mappers tracking the world's growth.
+        Join a community of mappers tracking the world’s growth.
       </Text>
 
       <View className="mt-8 gap-4">
@@ -157,12 +188,7 @@ export default function SignupCreateAccount() {
                       errors.dateOfBirth ? 'border-danger' : 'border-border',
                     )}
                   >
-                    <Text
-                      className={cn(
-                        'text-base',
-                        value ? 'text-text' : 'text-text opacity-40',
-                      )}
-                    >
+                    <Text className={cn('text-base', value ? 'text-text' : 'text-text opacity-40')}>
                       {value ? formatDisplayDate(value) : 'dd/mm/yyyy'}
                     </Text>
                     <CalendarIcon />
@@ -233,22 +259,33 @@ export default function SignupCreateAccount() {
                   </View>
                 </View>
               )}
+              <View className="mt-3 gap-1">
+                <PasswordRule label="At least 8 characters" ok={value.length >= 8} />
+                <PasswordRule label="One lowercase letter" ok={/[a-z]/.test(value)} />
+                <PasswordRule label="One uppercase letter" ok={/[A-Z]/.test(value)} />
+                <PasswordRule label="One number" ok={/[0-9]/.test(value)} />
+                <PasswordRule label="One special character" ok={/[^A-Za-z0-9]/.test(value)} />
+              </View>
             </View>
           )}
         />
       </View>
 
-      <Pressable onPress={() => setAgree(!agree)} className="mt-8 flex-row items-center gap-3">
-        <View
+      <View className="mt-8 flex-row items-center gap-3">
+        <Pressable
+          onPress={() => setAgree(!agree)}
           className={`h-6 w-6 items-center justify-center rounded-md border ${agree ? 'border-brand bg-brand' : 'border-border bg-white'}`}
         >
           {agree && <CheckIcon size={14} />}
-        </View>
-        <Text className="text-sm text-[#364859]">
+        </Pressable>
+        <Text className="flex-1 text-sm text-[#364859]">
           I agree to the <Text className="font-bold text-brand">Terms</Text> and{' '}
-          <Text className="font-bold text-brand">Privacy Policy</Text>.
+          <Link href="/(auth)/privacy-policy" asChild>
+            <Text className="font-bold text-brand underline">Privacy Policy</Text>
+          </Link>
+          .
         </Text>
-      </Pressable>
+      </View>
 
       {serverError ? (
         <Text className="mt-6 text-center text-sm font-medium text-danger">{serverError}</Text>
@@ -276,7 +313,7 @@ export default function SignupCreateAccount() {
         label="Continue with Google"
         variant="secondary"
         leftIcon={<GoogleIcon size={20} />}
-        onPress={() => {}}
+        onPress={() => { }}
       />
     </Screen>
   );

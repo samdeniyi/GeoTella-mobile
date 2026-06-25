@@ -26,6 +26,7 @@ module.exports = () => ({
           'Geotela uses your location to show nearby insights and let you tag new ones.',
         NSPhotoLibraryUsageDescription:
           'Geotela needs access to your photos so you can attach evidence to insights.',
+        ITSAppUsesNonExemptEncryption: false,
       },
     },
     android: {
@@ -66,6 +67,13 @@ module.exports = () => ({
         },
       ],
       '@react-native-community/datetimepicker',
+      [
+        '@stripe/stripe-react-native',
+        {
+          merchantIdentifier: 'merchant.com.geotela.app',
+          enableGooglePay: true,
+        },
+      ],
     ],
     experiments: {
       typedRoutes: true,

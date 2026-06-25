@@ -11,6 +11,7 @@ import {
   getMyContributions,
   getPendingVerification,
   likeInsight,
+  unlikeInsight,
   recordInsightView,
   unbookmarkInsight,
   updateInsight,
@@ -18,7 +19,7 @@ import {
 } from './insights-api';
 
 export const insightsKeys = {
-  feed: (page = 1, limit = 20, filters: FeedFilters = {}) =>
+  feed: (page = 1, limit = 100, filters: FeedFilters = {}) =>
     ['insights', 'feed', page, limit, filters] as const,
   detail: (id: string) => ['insights', 'detail', id] as const,
   pending: (page = 1, limit = 20) => ['insights', 'pending', page, limit] as const,
@@ -26,7 +27,7 @@ export const insightsKeys = {
   contributions: (page = 1, limit = 50) => ['insights', 'contributions', page, limit] as const,
 };
 
-export const useFeedQuery = (page = 1, limit = 20, filters: FeedFilters = {}) =>
+export const useFeedQuery = (page = 1, limit = 100, filters: FeedFilters = {}) =>
   useQuery({
     queryKey: insightsKeys.feed(page, limit, filters),
     queryFn: () => getFeed({ page, limit, ...filters }),
@@ -98,6 +99,16 @@ export const useLikeInsightMutation = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: likeInsight,
+    onSuccess: (_d, id) => {
+      void qc.invalidateQueries({ queryKey: insightsKeys.detail(id) });
+    },
+  });
+};
+
+export const useUnlikeInsightMutation = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: unlikeInsight,
     onSuccess: (_d, id) => {
       void qc.invalidateQueries({ queryKey: insightsKeys.detail(id) });
     },

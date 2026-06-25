@@ -1,5 +1,15 @@
 import * as ImagePicker from 'expo-image-picker';
-import { Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { useState } from 'react';
+import {
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { ArrowRight } from '@/components/ui/Icons';
 import { useAddStore } from '@/stores/add-store';
@@ -9,8 +19,32 @@ type Props = {
   onCancel: () => void;
 };
 
+// Accept http/https URLs only — anything else (mailto, javascript, ftp...) is
+// not what a source citation should be.
+const isValidSourceUrl = (raw: string): boolean => {
+  const candidate = raw.trim();
+  if (!candidate) return true; // empty is allowed; the field is optional
+  const withScheme = /^https?:\/\//i.test(candidate) ? candidate : `https://${candidate}`;
+  try {
+    const u = new URL(withScheme);
+    return Boolean(u.hostname && u.hostname.includes('.'));
+  } catch {
+    return false;
+  }
+};
+
 export function EvidenceStep({ onNext, onCancel }: Props) {
   const { data, setData } = useAddStore();
+  const [sourceError, setSourceError] = useState<string | null>(null);
+
+  const handleNext = () => {
+    if (data.sourceLink && data.sourceLink.trim() && !isValidSourceUrl(data.sourceLink)) {
+      setSourceError('Enter a valid URL (e.g. https://example.com)');
+      return;
+    }
+    setSourceError(null);
+    onNext();
+  };
 
   const pickPhoto = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -50,7 +84,18 @@ export function EvidenceStep({ onNext, onCancel }: Props) {
     strength === 3 ? 'Strong' : strength === 2 ? 'Good' : strength === 1 ? 'Fair' : 'Weak';
 
   return (
-    <ScrollView className="flex-1 px-6" showsVerticalScrollIndicator={false}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      className="flex-1"
+    >
+    <ScrollView
+      className="flex-1 px-6"
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
+      automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+      contentInsetAdjustmentBehavior="automatic"
+    >
       <Pressable
         onPress={pickPhoto}
         className="mb-8 items-center justify-center rounded-[32px] border-2 border-dashed border-border bg-white p-10"
@@ -87,14 +132,22 @@ export function EvidenceStep({ onNext, onCancel }: Props) {
           Source Link (Optional)
         </Text>
         <TextInput
-          className="rounded-2xl border border-border bg-white p-5 text-text"
+          className={`rounded-2xl border bg-white p-5 text-text ${
+            sourceError ? 'border-danger' : 'border-border'
+          }`}
           placeholder="https://..."
           placeholderTextColor="#9CA3AF"
           autoCapitalize="none"
           keyboardType="url"
           value={data.sourceLink}
-          onChangeText={(t) => setData({ sourceLink: t })}
+          onChangeText={(t) => {
+            setData({ sourceLink: t });
+            if (sourceError) setSourceError(null);
+          }}
         />
+        {sourceError ? (
+          <Text className="mt-2 text-xs font-medium text-danger">{sourceError}</Text>
+        ) : null}
       </View>
 
       <View className="mb-8">
@@ -134,7 +187,7 @@ export function EvidenceStep({ onNext, onCancel }: Props) {
 
       <View className="mb-10 gap-4">
         <Pressable
-          onPress={onNext}
+          onPress={handleNext}
           className="h-16 flex-row items-center justify-center gap-2 rounded-[24px] bg-brand"
         >
           <Text className="text-base font-bold text-white">Review</Text>
@@ -148,5 +201,6 @@ export function EvidenceStep({ onNext, onCancel }: Props) {
         </Pressable>
       </View>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }

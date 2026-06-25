@@ -144,7 +144,7 @@ export default function SignupDetails() {
       await completeOnboarding.mutateAsync(payload);
       // Keep the local draft in sync for any downstream screens still reading from it.
       patchDetails(payload);
-      router.replace('/(app)/(tabs)/map');
+      router.replace('/(auth)/signup/welcome');
     } catch (e) {
       setServerError(getErrorMessage(e, 'Could not save your profile. Please try again.'));
     }
@@ -154,7 +154,7 @@ export default function SignupDetails() {
   const onSkip = () => submit(false);
 
   return (
-    <Screen scroll className="pb-12 pt-6">
+    <Screen scroll keyboardAvoiding className="pb-12 pt-6">
       <BackButton className="mb-8" />
 
       <View
@@ -346,11 +346,11 @@ export default function SignupDetails() {
           loading={completeOnboarding.isPending}
           rightIcon={<ArrowRight size={20} />}
         />
-        <Pressable onPress={onSkip} disabled={completeOnboarding.isPending}>
+        {/* <Pressable onPress={onSkip} disabled={completeOnboarding.isPending}>
           <Text className="text-center text-base font-bold text-text opacity-50">
             Skip for now →
           </Text>
-        </Pressable>
+        </Pressable> */}
       </View>
     </Screen>
   );

@@ -9,6 +9,7 @@ import { extractInsights } from '@/features/insights/api/insights-api';
 import { useBookmarksQuery } from '@/features/insights/api/insights-queries';
 import { useBookmarkOverrides } from '@/features/insights/bookmark-store';
 import { normalizeInsight } from '@/features/insights/normalize';
+import { useUnreadNotificationsCount } from '@/features/notifications/api/notifications-queries';
 import { getErrorMessage } from '@/lib/api/error-message';
 import { useUserRole } from '@/stores/auth-store';
 
@@ -20,6 +21,7 @@ export default function SavedScreen() {
     () => extractInsights(bookmarks.data).map(normalizeInsight),
     [bookmarks.data],
   );
+  const unreadCount = useUnreadNotificationsCount();
 
   // Mirror server truth into the override store so feed/detail cards reflect
   // the saved state immediately when the user lands here from another tab.
@@ -34,7 +36,7 @@ export default function SavedScreen() {
         <View className="flex-row items-center justify-between py-2">
           <Logo />
           <Pressable onPress={() => router.push('/notifications')}>
-            <BellIcon />
+            <BellIcon hasUnread={unreadCount > 0} />
           </Pressable>
         </View>
 

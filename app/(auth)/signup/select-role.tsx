@@ -7,9 +7,9 @@ import { Button } from '@/components/ui/Button';
 import { BackIcon, ExplorerIcon, InvestorIcon, SelectedCheckIcon } from '@/components/ui/Icons';
 import { toBackendPersona } from '@/features/auth/api/persona-mapping';
 import { useSetPersonaMutation } from '@/features/profile/api/profile-queries';
-import { useAuthStore } from '@/stores/auth-store';
 import { getErrorMessage } from '@/lib/api/error-message';
 import { cn } from '@/lib/cn';
+import { useAuthStore } from '@/stores/auth-store';
 import { useSignupStore } from '@/stores/signup-store';
 import type { UserRole } from '@/types';
 

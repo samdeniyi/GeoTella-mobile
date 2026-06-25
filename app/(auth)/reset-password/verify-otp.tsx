@@ -1,5 +1,5 @@
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { Screen } from '@/components/layout/Screen';
@@ -11,6 +11,7 @@ import {
   useForgotPasswordMutation,
   useVerifyForgotPasswordMutation,
 } from '@/features/auth/api/auth-queries';
+import { useResendCooldown } from '@/hooks/use-resend-cooldown';
 import { getErrorMessage } from '@/lib/api/error-message';
 
 const maskEmail = (email: string) => {
@@ -27,9 +28,17 @@ export default function VerifyOtp() {
 
   const verifyMutation = useVerifyForgotPasswordMutation();
   const resendMutation = useForgotPasswordMutation();
+  const resendCooldown = useResendCooldown(60);
 
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  // The reset code was just sent by the previous step — start the cooldown so
+  // users wait at least a minute before requesting another one.
+  useEffect(() => {
+    resendCooldown.start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onVerify = async () => {
     setError(null);
@@ -50,8 +59,10 @@ export default function VerifyOtp() {
 
   const onResend = async () => {
     if (!email) return;
+    if (resendCooldown.isCoolingDown || resendMutation.isPending) return;
     try {
       await resendMutation.mutateAsync({ email });
+      resendCooldown.start();
     } catch {
       // Surface silently — user can retry.
     }
@@ -105,10 +116,20 @@ export default function VerifyOtp() {
         <Text className="text-base text-text opacity-70">
           Didn't get it?{' '}
           <Text
-            className="font-bold text-brand underline decoration-brand"
-            onPress={resendMutation.isPending ? undefined : onResend}
+            className={
+              resendCooldown.isCoolingDown || resendMutation.isPending
+                ? 'font-bold text-text opacity-40'
+                : 'font-bold text-brand underline decoration-brand'
+            }
+            onPress={
+              resendCooldown.isCoolingDown || resendMutation.isPending ? undefined : onResend
+            }
           >
-            {resendMutation.isPending ? 'Sending...' : 'Resend code'}
+            {resendMutation.isPending
+              ? 'Sending...'
+              : resendCooldown.isCoolingDown
+                ? `Resend in ${resendCooldown.secondsLeft}s`
+                : 'Resend code'}
           </Text>
         </Text>
         <Pressable onPress={() => router.back()} className="mt-8 flex-row items-center gap-2">

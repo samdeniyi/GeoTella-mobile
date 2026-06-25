@@ -13,6 +13,7 @@ import { useLoginMutation } from '@/features/auth/api/auth-queries';
 import { extractAuthPayload } from '@/features/auth/api/extract-auth';
 import { toUserRole } from '@/features/auth/api/persona-mapping';
 import { loginSchema, type LoginInput } from '@/features/auth/schemas/auth-schemas';
+import { extractProfile, getProfile } from '@/features/profile/api/profile-api';
 import { getWhoAmI, unwrap, type WhoAmI } from '@/features/users/api/users-api';
 import { getErrorMessage } from '@/lib/api/error-message';
 import { useAuthStore } from '@/stores/auth-store';
@@ -55,13 +56,21 @@ export default function Login() {
         refreshToken: payload.refreshToken,
         user: { ...baseUser, role: initialRole },
       });
+      // Persona lives on the profile (authoritative) — whoami sometimes omits it.
+      // Try both in parallel; prefer profile.persona, fall back to whoami fields.
       try {
-        const raw = await getWhoAmI();
-        const me = unwrap<WhoAmI>(raw);
-        const refreshedRole = toUserRole(me?.role) ?? toUserRole(me?.persona);
+        const [profileRes, whoRes] = await Promise.allSettled([getProfile(), getWhoAmI()]);
+        let refreshedRole: UserRole | null = null;
+        if (profileRes.status === 'fulfilled') {
+          const p = extractProfile(profileRes.value);
+          refreshedRole = toUserRole(p?.persona) ?? toUserRole(p?.role);
+        }
+        if (!refreshedRole && whoRes.status === 'fulfilled') {
+          const me = unwrap<WhoAmI>(whoRes.value);
+          refreshedRole = toUserRole(me?.role) ?? toUserRole(me?.persona);
+        }
         if (refreshedRole) useAuthStore.getState().setRole(refreshedRole);
-      } catch {
-      }
+      } catch { }
 
       if (payload.isOnboardingComplete === false) {
         router.replace('/(auth)/signup/select-role');
@@ -75,11 +84,11 @@ export default function Login() {
 
   return (
     <Screen scroll keyboardAvoiding className="pb-10 pt-6">
-      <BackButton className="mb-8" />
+      {/* <BackButton className="mb-8" /> */}
 
-      <Text className="text-4xl font-bold leading-tight text-text">Welcome back.</Text>
+      <Text className="text-4xl font-bold leading-tight text-text mt-8">Welcome back.</Text>
       <Text className="mt-3 text-lg text-text opacity-70">
-        Join 562 mappers exploring cities and tracking the world's growth
+        Engage with global and community-based mappers exploring tracking the world’s growth.
       </Text>
 
       <View className="mt-10 gap-6">

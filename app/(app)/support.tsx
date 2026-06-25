@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { router } from 'expo-router';
 import { useMemo } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -27,7 +27,6 @@ const FALLBACK_FAQS = [
 ];
 
 export default function SupportScreen() {
-  const router = useRouter();
   const faqQuery = useFaqQuery();
   const faqs = useMemo(() => {
     const apiFaqs = unwrapFaq(faqQuery.data).map((f) => ({
@@ -88,10 +87,16 @@ export default function SupportScreen() {
           CONTACT US
         </Text>
         <View className="mb-20 gap-4">
-          <Pressable className="h-20 items-center justify-center rounded-[24px] border border-border bg-white">
+          <Pressable
+            onPress={() => router.push('/contact-support')}
+            className="h-20 items-center justify-center rounded-[24px] border border-border bg-white active:opacity-90"
+          >
             <Text className="text-base font-bold text-text">Chat with Support</Text>
           </Pressable>
-          <Pressable className="h-20 items-center justify-center rounded-[24px] border border-border bg-white">
+          <Pressable
+            onPress={() => router.push('/contact-support')}
+            className="h-20 items-center justify-center rounded-[24px] border border-border bg-white active:opacity-90"
+          >
             <Text className="text-base font-bold text-text">Email Help Desk</Text>
           </Pressable>
         </View>

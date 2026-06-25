@@ -1,15 +1,20 @@
 import { Link } from 'expo-router';
-import { Text, View } from 'react-native';
+import { Image, Text, View } from 'react-native';
 
 import { Screen } from '@/components/layout/Screen';
 import { Button } from '@/components/ui/Button';
-import { Logo, ArrowRight } from '@/components/ui/Icons';
+import { ArrowRight } from '@/components/ui/Icons';
 
 export default function Onboarding() {
   return (
     <Screen className="px-6 py-10" scroll>
       <View className="py-10">
-        <Logo />
+        <Image
+          source={require('../../assets/icon.png')}
+          style={{ width: 96, height: 96, borderRadius: 24 }}
+          resizeMode="contain"
+          accessibilityLabel="Geotela"
+        />
       </View>
 
       <View className="mb-12 flex-row items-center gap-2">

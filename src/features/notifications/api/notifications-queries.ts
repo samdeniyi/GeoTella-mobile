@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
+  extractNotifications,
   getNotifications,
   markAllNotificationsRead,
   markNotificationRead,
@@ -12,6 +13,15 @@ export const notificationsKeys = {
 
 export const useNotificationsQuery = () =>
   useQuery({ queryKey: notificationsKeys.list, queryFn: getNotifications });
+
+export const useUnreadNotificationsCount = (): number => {
+  const query = useNotificationsQuery();
+  const items = extractNotifications(query.data);
+  // A notification is unread only when the backend positively says so —
+  // `isRead === false` (or the legacy `read === false`). Notifications that
+  // omit both fields default to read so we don't show a phantom red dot.
+  return items.filter((n) => n.isRead === false || n.read === false).length;
+};
 
 export const useMarkNotificationReadMutation = () => {
   const qc = useQueryClient();

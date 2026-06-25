@@ -22,6 +22,13 @@ export function Screen({
   const inner = scroll ? (
     <ScrollView
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
+      // iOS-only: ScrollView expands its bottom inset by the keyboard height
+      // and scrolls the focused TextInput into view. Combined with the
+      // KeyboardAvoidingView below, fields near the bottom of the screen no
+      // longer get covered by the keyboard.
+      automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+      contentInsetAdjustmentBehavior="automatic"
       contentContainerClassName={cn('px-5 pb-8', className)}
     >
       {children}
@@ -35,6 +42,7 @@ export function Screen({
       {keyboardAvoiding ? (
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={0}
           className="flex-1"
         >
           {inner}

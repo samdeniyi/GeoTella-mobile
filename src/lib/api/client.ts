@@ -95,11 +95,19 @@ export async function apiRequest<T = unknown>(
   }
 
   if (!response.ok) {
-    // Auto-logout on 401 — the token is expired or invalid, so kick the user
-    // back to the auth flow. Skip for explicitly unauthenticated requests
-    // (login, register, etc.) and for the logout endpoint itself, otherwise a
-    // 401 from logout would call signOut → logout → signOut in a loop.
-    if (response.status === 401 && !unauthenticated && path !== '/api/auth/logout') {
+    // Auto-logout on 401 — the server is telling us the session is no longer
+    // valid, so we shouldn't keep pretending the user is signed in. Gated on:
+    //   - request was authenticated (skip login/register/etc)
+    //   - we currently believe we're authenticated (don't fire during hydrate
+    //     or while already signed out, which prevents the cold-start race that
+    //     used to kick users to login)
+    //   - not the logout endpoint itself (avoids signOut → logout → signOut)
+    if (
+      response.status === 401 &&
+      !unauthenticated &&
+      path !== '/api/auth/logout' &&
+      useAuthStore.getState().status === 'authenticated'
+    ) {
       void useAuthStore.getState().signOut();
     }
 

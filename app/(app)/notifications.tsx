@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -16,8 +16,6 @@ import {
 import { getErrorMessage } from '@/lib/api/error-message';
 import { cn } from '@/lib/cn';
 import { useUserRole } from '@/stores/auth-store';
-
-type Tab = 'All' | 'Activity' | 'Updates';
 
 const initials = (name?: string) =>
   (name ?? '')
@@ -43,14 +41,6 @@ const formatTime = (iso?: string): string => {
   return new Date(ts).toLocaleDateString().toUpperCase();
 };
 
-const ACTIVITY_TYPES = new Set(['FOLLOW', 'INSIGHT_ADDED', 'INSIGHT_VERIFIED', 'LIKE', 'COMMENT']);
-
-const categoryFor = (n: NotificationItem): 'ACTIVITY' | 'UPDATES' => {
-  if (n.category === 'ACTIVITY' || n.category === 'UPDATES') return n.category;
-  if (n.type && ACTIVITY_TYPES.has(n.type)) return 'ACTIVITY';
-  return 'UPDATES';
-};
-
 const getActorBg = (name: string) => {
   let hash = 0;
   for (let i = 0; i < name.length; i++) {
@@ -63,27 +53,12 @@ export default function NotificationsScreen() {
   const router = useRouter();
   const role = useUserRole();
   const isExplorer = role === 'EXPLORER';
-  const [activeTab, setActiveTab] = useState<Tab>('All');
 
   const query = useNotificationsQuery();
   const markRead = useMarkNotificationReadMutation();
   const markAll = useMarkAllNotificationsReadMutation();
 
   const all = useMemo(() => extractNotifications(query.data), [query.data]);
-
-  const tabs: Tab[] = useMemo(() => {
-    return isExplorer ? ['All', 'Activity'] : ['All', 'Activity', 'Updates'];
-  }, [isExplorer]);
-
-  const filtered = useMemo(() => {
-    if (activeTab === 'All') return all;
-    return all.filter(
-      (n) => categoryFor(n) === (activeTab === 'Activity' ? 'ACTIVITY' : 'UPDATES'),
-    );
-  }, [all, activeTab]);
-
-  const activity = filtered.filter((n) => categoryFor(n) === 'ACTIVITY');
-  const updates = filtered.filter((n) => categoryFor(n) === 'UPDATES');
 
   const handlePress = (n: NotificationItem) => {
     if (!n.isRead && !n.read) markRead.mutate(n.id);
@@ -119,29 +94,6 @@ export default function NotificationsScreen() {
         </Pressable>
       </SafeAreaView>
 
-      <View className="flex-row border-b border-border bg-surface">
-        {tabs.map((tab) => (
-          <Pressable
-            key={tab}
-            onPress={() => setActiveTab(tab)}
-            className={cn(
-              'flex-1 items-center py-4',
-              activeTab === tab && 'border-b-4',
-              activeTab === tab && (isExplorer ? 'border-accent' : 'border-brand'),
-            )}
-          >
-            <Text
-              className={cn(
-                'text-base font-bold',
-                activeTab === tab ? 'text-text' : 'text-text opacity-40',
-              )}
-            >
-              {tab}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
@@ -169,29 +121,7 @@ export default function NotificationsScreen() {
             </Text>
           </View>
         ) : (
-          <>
-            {activeTab !== 'Updates' && activity.length > 0 ? (
-              <View>
-                <View className="bg-surface px-6 py-4">
-                  <Text className="text-[10px] font-bold uppercase tracking-widest text-text opacity-40">
-                    New Interactions
-                  </Text>
-                </View>
-                {activity.map((n) => renderNotification(n, handlePress, isExplorer))}
-              </View>
-            ) : null}
-
-            {activeTab !== 'Activity' && updates.length > 0 ? (
-              <View>
-                <View className="bg-surface px-6 py-4">
-                  <Text className="text-[10px] font-bold uppercase tracking-widest text-text opacity-40">
-                    System Updates
-                  </Text>
-                </View>
-                {updates.map((n) => renderNotification(n, handlePress, isExplorer))}
-              </View>
-            ) : null}
-          </>
+          all.map((n) => renderNotification(n, handlePress, isExplorer))
         )}
 
         <View className="h-20" />

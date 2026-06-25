@@ -8,16 +8,27 @@ import {
   ScrollView,
   Text,
   View,
+  Alert,
 } from 'react-native';
 import MapView, {
   Marker,
+  Circle,
   PROVIDER_GOOGLE,
   type MapPressEvent,
   type Region,
 } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Logo, BellIcon, PinIcon, ArrowRight } from '@/components/ui/Icons';
+import {
+  Logo,
+  BellIcon,
+  PinIcon,
+  ArrowRight,
+  FireIcon,
+  LockIcon,
+  WarningIcon,
+  TokenWalletIcon,
+} from '@/components/ui/Icons';
 import {
   extractInsights,
   type FeedFilters,
@@ -30,6 +41,9 @@ import {
 } from '@/features/insights/components/FeedFilterModal';
 import { reverseGeocode } from '@/features/maps/geocode';
 import { PlaceSearch } from '@/features/maps/PlaceSearch';
+import { useUnreadNotificationsCount } from '@/features/notifications/api/notifications-queries';
+import { useWalletDashboardQuery } from '@/features/wallet/api/wallet-queries';
+import { unwrap } from '@/features/wallet/api/wallet-api';
 import { cn } from '@/lib/cn';
 import { useAddStore } from '@/stores/add-store';
 
@@ -51,6 +65,7 @@ type TappedPoint = {
 
 export default function MapScreen() {
   const router = useRouter();
+  const unreadCount = useUnreadNotificationsCount();
   // Deep-link params from the insight detail "View on Map" button.
   const params = useLocalSearchParams<{
     lat?: string;
@@ -67,6 +82,46 @@ export default function MapScreen() {
   const resetAdd = useAddStore((s) => s.reset);
   const [selectedInsight, setSelectedInsight] = useState<Insight | null>(null);
   const [tappedPoint, setTappedPoint] = useState<TappedPoint | null>(null);
+
+  const dashboardQuery = useWalletDashboardQuery();
+  const dashboard = unwrap(dashboardQuery.data);
+  const balance = dashboard?.balance ?? 0;
+
+  // Hot zones unlock state — this feature doesn't have a dedicated API yet,
+  // so we track it locally. Replace with an API call when available.
+  const [hotZonesUnlocked, setHotZonesUnlocked] = useState(false);
+
+  const [hotZonesVisible, setHotZonesVisible] = useState(false);
+  const [hotZonesModalOpen, setHotZonesModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (hotZonesUnlocked) {
+      setHotZonesVisible(true);
+    }
+  }, [hotZonesUnlocked]);
+
+  const handlePillPress = () => {
+    if (!hotZonesUnlocked) {
+      setHotZonesModalOpen(true);
+    } else {
+      setHotZonesVisible(!hotZonesVisible);
+    }
+  };
+
+  const handleUnlockHotZones = () => {
+    if (balance >= 15) {
+      setHotZonesUnlocked(true);
+      setHotZonesModalOpen(false);
+      Alert.alert('Success', 'Growth Hot Zones unlocked successfully!');
+    } else {
+      Alert.alert('Error', 'Insufficient balance or purchase error.');
+    }
+  };
+
+  const handleGoToBuy = () => {
+    setHotZonesModalOpen(false);
+    router.push('/wallet/buy');
+  };
 
   const [filters, setFilters] = useState<FeedFilters>({});
   const [filterOpen, setFilterOpen] = useState(false);
@@ -166,7 +221,7 @@ export default function MapScreen() {
         <View className="flex-row items-center justify-between py-2">
           <Logo />
           <Pressable onPress={() => router.push('/notifications')}>
-            <BellIcon />
+            <BellIcon hasUnread={unreadCount > 0} />
           </Pressable>
         </View>
 
@@ -255,6 +310,50 @@ export default function MapScreen() {
       </SafeAreaView>
 
       <View className="flex-1">
+        {/* Floating Growth Hot Zones Pill */}
+        <Pressable
+          onPress={handlePillPress}
+          className="absolute left-6 top-4 z-10 flex-row items-center gap-2 rounded-full border border-[#E6DFB9] bg-[#FAF7E8] px-4 py-2 shadow active:opacity-90"
+        >
+          <FireIcon color="#B85317" size={14} />
+          <Text className="text-xs font-bold text-[#5C3E14]">Growth Hot Zones</Text>
+          {!hotZonesUnlocked ? (
+            <View className="flex-row items-center gap-1 rounded-full border border-[#EAD093] bg-[#FAF1CC] px-2 py-0.5">
+              <LockIcon color="#B85317" size={10} />
+              <Text className="text-[10px] font-extrabold text-[#B85317]">15 tk</Text>
+            </View>
+          ) : (
+            <View
+              className={cn(
+                'rounded-md px-1.5 py-0.5',
+                hotZonesVisible ? 'bg-[#0E5A3A]' : 'bg-gray-400',
+              )}
+            >
+              <Text className="text-[9px] font-extrabold text-white">
+                {hotZonesVisible ? 'ON' : 'OFF'}
+              </Text>
+            </View>
+          )}
+        </Pressable>
+
+        {/* Legend panel visible when hot zones are ON */}
+        {hotZonesUnlocked && hotZonesVisible ? (
+          <View className="absolute bottom-6 left-6 z-10 flex-row items-center gap-4 rounded-full border border-border bg-[#FAF9F6] px-4 py-2 shadow-md">
+            <View className="flex-row items-center gap-1.5">
+              <View className="h-2.5 w-2.5 rounded-full bg-[#E85A2D]" />
+              <Text className="text-[10px] font-bold text-text">Hot</Text>
+            </View>
+            <View className="flex-row items-center gap-1.5">
+              <View className="h-2.5 w-2.5 rounded-full bg-[#FBBC05]" />
+              <Text className="text-[10px] font-bold text-text">Warming</Text>
+            </View>
+            <View className="flex-row items-center gap-1.5">
+              <View className="h-2.5 w-2.5 rounded-full bg-[#0E5A3A]" />
+              <Text className="text-[10px] font-bold text-text">Steady</Text>
+            </View>
+          </View>
+        ) : null}
+
         <MapView
           ref={mapRef}
           style={{ flex: 1 }}
@@ -263,6 +362,29 @@ export default function MapScreen() {
           onPress={handleMapPress}
           showsUserLocation
         >
+          {hotZonesUnlocked && hotZonesVisible ? (
+            <>
+              <Circle
+                center={{ latitude: 6.5244, longitude: 3.3792 }}
+                radius={3500}
+                fillColor="rgba(232, 90, 45, 0.22)"
+                strokeColor="rgba(0, 0, 0, 0)"
+              />
+              <Circle
+                center={{ latitude: 6.542, longitude: 3.398 }}
+                radius={2500}
+                fillColor="rgba(251, 188, 5, 0.22)"
+                strokeColor="rgba(0, 0, 0, 0)"
+              />
+              <Circle
+                center={{ latitude: 6.51, longitude: 3.36 }}
+                radius={4000}
+                fillColor="rgba(14, 90, 58, 0.22)"
+                strokeColor="rgba(0, 0, 0, 0)"
+              />
+            </>
+          ) : null}
+
           {insightsWithCoords.map((i) => (
             <Marker
               key={i.id}
@@ -393,6 +515,115 @@ export default function MapScreen() {
                 </View>
               </>
             ) : null}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Growth Hot Zones Unlock / Not Enough Tokens Modal */}
+      <Modal
+        visible={hotZonesModalOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setHotZonesModalOpen(false)}
+      >
+        <View className="flex-1 justify-end bg-black/40">
+          <Pressable onPress={() => setHotZonesModalOpen(false)} className="flex-1" />
+          <View className="rounded-t-[32px] border-t border-border bg-surface-card p-6">
+            <View className="mb-4 h-1.5 w-12 self-center rounded-full bg-border/40" />
+
+            {balance >= 15 ? (
+              <View className="items-center py-4">
+                {/* Green Flame Icon container */}
+                <View className="h-16 w-16 items-center justify-center rounded-full bg-[#DCF5EA]">
+                  <FireIcon color="#0E5A3A" size={28} />
+                </View>
+
+                {/* Title */}
+                <Text className="mt-4 text-center text-2xl font-bold text-text">
+                  Reveal Growth Hot Zones
+                </Text>
+                <Text className="mt-2 px-4 text-center text-sm leading-normal text-text opacity-70">
+                  Colour-coded growth overlay across the whole map.
+                </Text>
+
+                {/* Info Card */}
+                <View className="my-6 w-full flex-row items-center justify-between rounded-2xl border border-border bg-surface p-4">
+                  <View className="flex-row items-center gap-3">
+                    <TokenWalletIcon color="#0E5A3A" size={20} />
+                    <Text className="text-sm font-extrabold text-text">This unlock</Text>
+                  </View>
+                  <Text className="text-sm font-extrabold text-[#C14622]">-15 tokens</Text>
+                </View>
+
+                {/* Balance Transition */}
+                <Text className="mb-6 text-center text-xs text-text opacity-60">
+                  Balance {balance} ➔ {balance - 15} tokens
+                </Text>
+
+                {/* Confirm Button */}
+                <Pressable
+                  onPress={handleUnlockHotZones}
+                  className="h-14 w-full flex-row items-center justify-center gap-2 rounded-2xl bg-[#0E5A3A] shadow-sm active:opacity-90"
+                >
+                  <TokenWalletIcon color="white" size={18} />
+                  <Text className="text-base font-bold text-white">Confirm · Spend 15</Text>
+                </Pressable>
+
+                {/* Not now */}
+                <Pressable
+                  onPress={() => setHotZonesModalOpen(false)}
+                  className="mt-5 py-2 active:opacity-60"
+                >
+                  <Text className="text-sm font-extrabold text-brand">Not now</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View className="items-center py-4">
+                {/* Orange Warning Icon container */}
+                <View className="h-16 w-16 items-center justify-center rounded-full bg-[#FFF5F0]">
+                  <WarningIcon color="#E85A2D" size={28} />
+                </View>
+
+                {/* Title */}
+                <Text className="mt-4 text-center text-2xl font-bold text-text">
+                  Not enough tokens
+                </Text>
+                <Text className="mt-2 px-4 text-center text-sm leading-normal text-text opacity-70">
+                  You need 15 tokens to reveal Growth Hot Zones — top up to continue.
+                </Text>
+
+                {/* Info Card */}
+                <View className="my-6 w-full flex-row items-center justify-between rounded-2xl border border-border bg-surface p-4">
+                  <View className="flex-row items-center gap-3">
+                    <TokenWalletIcon color="#0E5A3A" size={20} />
+                    <Text className="text-sm font-extrabold text-text">Your balance</Text>
+                  </View>
+                  <Text className="text-sm font-extrabold text-[#C14622]">{balance} tokens</Text>
+                </View>
+
+                {/* Short Indicator */}
+                <Text className="mb-6 text-center text-xs font-bold text-[#C14622]">
+                  Short by {15 - balance} tokens
+                </Text>
+
+                {/* Buy Button */}
+                <Pressable
+                  onPress={handleGoToBuy}
+                  className="h-14 w-full flex-row items-center justify-center gap-2 rounded-2xl bg-[#0E5A3A] shadow-sm active:opacity-90"
+                >
+                  <TokenWalletIcon color="white" size={18} />
+                  <Text className="text-base font-bold text-white">Buy tokens</Text>
+                </Pressable>
+
+                {/* Maybe later */}
+                <Pressable
+                  onPress={() => setHotZonesModalOpen(false)}
+                  className="mt-5 py-2 active:opacity-60"
+                >
+                  <Text className="text-sm font-extrabold text-brand">Maybe later</Text>
+                </Pressable>
+              </View>
+            )}
           </View>
         </View>
       </Modal>
